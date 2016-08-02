@@ -1,0 +1,17 @@
+---
+# Example API Key Config File
+# This should be named secrets.yaml
+api_keys:
+  usps:
+    key: None
+    password: None
+  ups:
+    key: None
+  fedex:
+    key: None
+  amazon:
+    username: None
+    password: None
+  slack:
+    key: None
+...
