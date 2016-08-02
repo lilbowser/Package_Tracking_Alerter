@@ -4,19 +4,18 @@ Copyright (c) 2016 Ashley Goldfarb
 
 Code for scanning new emails in gmail account. Requires a client secret in client_secret.json from google to operate.
 """
-import httplib2
+import base64
+import email
 import os
+import re
 
-from apiclient import discovery, errors
+import httplib2
 import oauth2client
+from apiclient import discovery, errors
 from oauth2client import client
 from oauth2client import tools
 
-import email
-import base64
-import re
-from Packages import Packages
-from Packages import Package
+from Tracking.Packages import Packages
 
 try:
     import argparse
@@ -144,14 +143,14 @@ def parse_email_address(_address):
         return (None, decoded_address)
 
 
-def unpack_email(_email, id):
+def unpack_email(_email, _id):
     p_email = {}
     p_email['email_object'] = _email
     p_email['to'] = _email['to']
     p_email['from_name'], p_email['from_address'] = parse_email_address(_email['from'])
     p_email['subject'] = decode_international_header(_email['subject'])
     p_email['body'] = unpack_body(_email)
-    p_email['id'] = id
+    p_email['id'] = _id
 
     return p_email
 
@@ -174,10 +173,9 @@ def get_mime_message(service, user_id, msg_id):
 
         print('Message snippet: %s' % message['snippet'])
 
-        msg_str = base64.urlsafe_b64decode(message['raw'].encode('ASCII')) #"utf-8")
+        msg_str = base64.urlsafe_b64decode(message['raw'].encode('ASCII'))
         decoded_str = msg_str.decode('utf-8', errors='ignore')
         mime_msg = email.message_from_string(decoded_str)
-        # alt_mime_msg = email.message_from_string(msg_str.decode("iso-2022-JP"))
         return mime_msg
     except errors.HttpError as error:
         print('An error occurred: %s' % error)
@@ -208,10 +206,8 @@ def search_for_tracking(content):
     if search is not None:
         return ("japan_post", search.groups()[0])
 
-
     #  if no match
     return (None, None)
-
 
 
 def main():
