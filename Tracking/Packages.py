@@ -10,6 +10,7 @@ import datetime
 import dill
 # from Tracking import Tracker
 import Tracking.Tracker as Tracker
+from Tracking.TrackingData import TrackingInfo
 
 
 class Package:
@@ -19,20 +20,44 @@ class Package:
     def __init__(self, carrier, tracking_number, name=None):
 
         self.name = name
-        self.carrier = Tracker.identify_carrier(carrier)  # type: Tracking.Carriers.BaseInterface.BaseInterface
+        self.carrier = Tracker.identify_carrier(carrier)  # type: Tracking\Carriers/BaseInterface/BaseInterface
         self.number = tracking_number
-        self.info = None#TrackingInfo(tracking_number)
+        self._info = TrackingInfo(None)  # self.carrier.track(self.number)  # type: TrackingInfo
+        self.new_event_callback = lambda x: None
         # self.last_update_time = datetime.datetime.min
+
+
+    @property
+    def info(self):
+        """
+
+        :return: tracking info
+        :rtype: TrackingInfo
+        """
+        return self._info
+
+    @info.setter
+    def info(self, value):
+        if self._info != value:
+            self._info = value
+            self.new_event_callback(self)
+
 
     def get_tracking_data(self):
         # self.carrier.get_tracking_data(self.number)
-        self.info = self.carrier.track(self.number)
+        self.info = self.carrier.track(self.number)  # type: TrackingInfo
 
 
 class Packages:
 
     def __init__(self):
         self.packages = []  # type: List[Package]
+        self.new_event_callback = lambda x: None
+
+    def define_callback(self, callback_function):
+        self.new_event_callback = callback_function
+        for package in self.packages:
+            package.new_event_callback = callback_function
 
     def add_package(self, carrier, tracking_number, name=None):
 
@@ -42,7 +67,18 @@ class Packages:
                 duplicate = True
 
         if not duplicate:
-            self.packages.append(Package(carrier, tracking_number, name))
+            new_package = Package(carrier, tracking_number, name)
+            new_package.new_event_callback = self.new_event_callback
+            self.packages.append(new_package)
+            return True
+        else:
+            return False
+
+    def update_tracking(self):
+        for package in self.packages:
+            package.get_tracking_data()
+
+
 
 
 
@@ -51,4 +87,4 @@ if __name__ == '__main__':
     packages = Packages()
     packages.add_package("usps", "12836933")
 
-    print(dill.pickles(packages))
+    print(dill.pickles(packages))  # Test to ensure object is still picklable

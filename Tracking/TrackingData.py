@@ -10,8 +10,11 @@ class TrackingInfo:
         self.tracking_number = tracking_number
         self.delivery_date = delivery_date
         self.is_delivered = is_delivered
-        self.events = []
+        self._events = []
         # self.update(kwargs)
+
+        if self.tracking_number is None:
+            self.create_event(None, None, None)
 
     # def __getattr__(self, name):
     #     return self[name]
@@ -19,11 +22,38 @@ class TrackingInfo:
     # def __setattr__(self, name, val):
     #     self[name] = val
 
+    def __eq__(self, other):
+        if isinstance(other,TrackingInfo):
+            return other.last_update == self.last_update
+        return NotImplemented
+
+    def __ne__(self, other):
+        result = self.__eq__(other)
+        if result is NotImplemented:
+            return result
+        return not result
+
+
+    @property
+    def events(self):
+        """
+
+        :return:
+        :rtype: list[TrackingEvent]
+        """
+        return self._events
+
+    @events.setter
+    def events(self, value):
+        self._events = value
+
+
     @property
     def location(self):
         """A shortcut to the location of the latest event for this package
         """
         return self.events[-1].location
+
 
     @property
     def last_update(self):
@@ -31,11 +61,13 @@ class TrackingInfo:
         """
         return self.events[-1].timestamp
 
+
     @property
     def status(self):
         """Shortcut to the detail of the latest event for this package
         """
         return self.events[-1].detail
+
 
     def create_event(self, timestamp, location, detail, **kwargs):
         """Create a new event with these attributes, events do not need to be added
