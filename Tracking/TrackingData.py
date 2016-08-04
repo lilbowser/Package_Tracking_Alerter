@@ -1,8 +1,9 @@
 
 from operator import attrgetter
+import collections
 
 
-class TrackingInfo:
+class TrackingInfo(collections.MutableMapping):
 
     def __init__(self, tracking_number, delivery_date=None, is_delivered=False, **kwargs):
         # indict = {}
@@ -10,11 +11,39 @@ class TrackingInfo:
         self.tracking_number = tracking_number
         self.delivery_date = delivery_date
         self.is_delivered = is_delivered
+        # self.expected_delivery_date =
         self._events = []
-        # self.update(kwargs)
+
+        self.store = dict()
+        self.update(kwargs)
 
         if self.tracking_number is None:
             self.create_event(None, None, None)
+
+
+    def __getitem__(self, key):
+        return self.store[self._keytransform_(key)]
+
+
+    def __setitem__(self, key, value):
+        self.store[self._keytransform_(key)] = value
+
+
+    def __delitem__(self, key):
+        del self.store[self._keytransform_(key)]
+
+
+    def __iter__(self):
+        return iter(self.store)
+
+
+    def __len__(self):
+        return len(self.store)
+
+
+    def _keytransform_(self, key):
+        return key
+
 
     # def __getattr__(self, name):
     #     return self[name]
@@ -23,7 +52,7 @@ class TrackingInfo:
     #     self[name] = val
 
     def __eq__(self, other):
-        if isinstance(other,TrackingInfo):
+        if isinstance(other, TrackingInfo):
             return other.last_update == self.last_update
         return NotImplemented
 

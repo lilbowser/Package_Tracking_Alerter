@@ -1,5 +1,5 @@
 import datetime
-
+import logging
 import requests
 import yaml
 
@@ -9,8 +9,20 @@ from Tracking.errors import *
 from Tracking.TrackingData import TrackingInfo
 from xml_dict import xml_to_dict
 
+logger = logging.getLogger('USPS_Interface')
+
 
 class USPSInterface(BaseInterface):
+    """
+    https://www.usps.com/business/web-tools-apis/track-and-confirm-api.htm
+
+    Stores the following additional parameters in TrackingInfo:
+     service
+     expected_delivery_date (Optional)
+     predicted_delivery_date (Optional)
+     status_summary (Optional)
+
+    """
     SHORT_NAME = 'usps'
     LONG_NAME = 'U.S. Postal Service'
 
@@ -23,6 +35,7 @@ class USPSInterface(BaseInterface):
             'API=TrackV2&XML=',
         'secure':      'https://secure.shippingapis.com/ShippingAPI.dll?' \
             'API=TrackV2&XML=',
+        'local':       'http://127.0.0.1:5000/rev1?',
     }
     # _service_types = {
     #     'EA': 'Express Mail',
@@ -33,10 +46,10 @@ class USPSInterface(BaseInterface):
     #     # 'EJ': 'something?',
     # }
     _url_template = 'https://tools.usps.com/go/TrackConfirmAction.action?tLabels={tracking_number}'
-    _request_xml = '<TrackFieldRequest USERID="{userid}">' \
-        '<TrackID ID="{tracking_number}"/></TrackFieldRequest>'
+    # _request_xml = '<TrackFieldRequest USERID="{userid}">' \
+    #     '<TrackID ID="{tracking_number}"/></TrackFieldRequest>'
 
-    usps_tracking_template = '<TrackFieldRequest USERID="{user_id}">' \
+    _request_xml = '<TrackFieldRequest USERID="{userid}">' \
                              '<Revision>1</Revision>' \
                              '<ClientIp>127.0.0.1</ClientIp>' \
                              '<SourceId>John Doe</SourceId>' \
@@ -55,6 +68,7 @@ class USPSInterface(BaseInterface):
         return self._parse_response(resp, tracking_number)
 
     def identify(self, tracking_number):
+        # TODO: Broken?
         return {
             13: lambda tn: \
                 tn[0:2].isalpha() and tn[2:9].isdigit() and tn[11:13].isalpha(),
@@ -67,7 +81,7 @@ class USPSInterface(BaseInterface):
         # TODO: This is broken
         if tracking_info is None:
             tracking_info = self.track(tracking_number)
-        return tracking_info.status.lower() == 'delivered'
+        return tracking_info.status.lower().startswith('delivered')
 
     def _build_request(self, tracking_number):
         return self._request_xml.format(
@@ -100,12 +114,23 @@ class USPSInterface(BaseInterface):
         summary = rsp['TrackResponse']['TrackInfo']['TrackSummary']
 
         # USPS doesn't return this, so we work it out from the tracking number
-        service_description = "Not_Implemented" #"#self._service_types.get(tracking_number[0:2], 'USPS')
+        service_description = rsp['TrackResponse']['TrackInfo']['Class']#"Not_Implemented" #"#self._service_types.get(tracking_number[0:2], 'USPS')
+
 
         trackinfo = TrackingInfo(
             tracking_number = tracking_number,
             service         = service_description,
         )
+
+        if 'ExpectedDeliveryDate' in rsp['TrackResponse']['TrackInfo']:
+            trackinfo['expected_delivery_date'] = rsp['TrackResponse']['TrackInfo']['ExpectedDeliveryDate'] # TODO: Convert to datetime obj
+
+        if 'PredictedDeliveryDate' in rsp['TrackResponse']['TrackInfo']:
+            trackinfo['predicted_delivery_date'] = rsp['TrackResponse']['TrackInfo'][
+                'PredictedDeliveryDate']  # TODO: Convert to datetime obj
+
+        if 'StatusSummary' in rsp['TrackResponse']['TrackInfo']:
+            trackinfo['status_summary'] = rsp['TrackResponse']['TrackInfo']['StatusSummary']
 
         # add the summary event, USPS doesn't duplicate it in the event log,
         # but we want it there
@@ -146,8 +171,7 @@ class USPSInterface(BaseInterface):
     def _getTrackingLocation(self, node):
         """Returns a location given a node that has
             EventCity, EventState, EventCountry elements"""
-        return ','.join(
-            node[key] for key in ('Event'+i for i in ['City', 'State', 'Country']) \
+        return ','.join(node[key] for key in ('Event'+i for i in ['City', 'State', 'Country']) \
                 if node[key]) or \
             'USA'
 

@@ -6,12 +6,13 @@ Copyright (c) 2016 Ashley Goldfarb
 
 from GmailScanner import Gmail
 from Tracking.Packages import Packages
-from Tracking.Packages import Package
+from Tracking.Packages import Package  # Only here for type hinting.
 
 from slacker import Slacker
 import yaml
 import re
 import time
+
 
 def load_config(config_file_name):
     with open(config_file_name) as _config:
@@ -34,7 +35,8 @@ def new_email_received(_emails):
 
 
 def new_tracking_event(package: Package):
-    slack.chat.post_message('#general', 'Package {} is now {} at '.format(package.name, package.info.events[-1].detail, package.info.events[-1].location))
+    slack.chat.post_message('#general', 'Package {} is now {} at {}'.format(package.name, package.info.events[-1].detail,
+                                                                            package.info.events[-1].location))
 
 
 def search_for_tracking(content):  # TODO: Consider a more appropriate location for this.

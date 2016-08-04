@@ -8,6 +8,8 @@ import base64
 import email
 import os
 import re
+import logging
+import copy
 
 import httplib2
 import oauth2client
@@ -15,8 +17,8 @@ from apiclient import discovery, errors
 from oauth2client import client
 from oauth2client import tools
 
-from Tracking.Packages import Packages
-import copy
+# from Tracking.Packages import Packages
+
 
 try:
     import argparse
@@ -29,6 +31,8 @@ except ImportError:
 SCOPES = 'https://www.googleapis.com/auth/gmail.readonly'
 CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'Gmail API Python Quickstart'
+
+logger = logging.getLogger('GMail')
 
 
 class Gmail:
@@ -76,7 +80,13 @@ class Gmail:
 
             message_ids = self.full_email_sync()['messages']
         else:
-            message_ids, new_history_id = self.incremental_email_sync()
+            try:
+                message_ids, new_history_id = self.incremental_email_sync()
+            except errors.HttpError:
+                logger.warning(
+                    "Partial sync encountered a 404 error. The HistoryID may be out of date or invalid. Preforming full sync.")
+                message_ids = self.full_email_sync()['messages']
+
             if message_ids is None:
                 # no new emails to retrieve
                 return False
@@ -110,7 +120,12 @@ class Gmail:
 
         if len(self.email) > 0:
             self.email = []
-        response = self.service.users().messages().list(userId="me", maxResults=10, includeSpamTrash=False).execute()
+        try:
+            response = self.service.users().messages().list(userId="me", maxResults=10, includeSpamTrash=False).execute()
+        except Exception as error:
+            print(error)
+            raise error
+
         return response
 
 
@@ -121,29 +136,25 @@ class Gmail:
         Returns: A list of message ids or None if there are no new messages
 
         """
-        try:
-            history = self.service.users().history().list(userId="me",
-                                                          startHistoryId=self.newest_history_id_retrieved).execute()
-            if 'history' not in history:
-                # No new messages to download
-                self.newest_history_id_retrieved = history['historyId']
-                return None, None
 
-            message_ids = []
-            for event in history['history']:
-                if 'messagesAdded' in event:
-                    message_ids.append({'id': event['messagesAdded'][0]['message']['id']})
-                    if len(event['messagesAdded']) > 1:
-                        print("History message has more than 1 entry!!! WAT???!!!")
+        history = self.service.users().history().list(userId="me",
+                                                      startHistoryId=self.newest_history_id_retrieved).execute()
+        if 'history' not in history:
+            # No new messages to download
+            self.newest_history_id_retrieved = history['historyId']
+            return None, None
 
-            if len(message_ids) < 1:
-                # No added messages were in the response.
-                self.newest_history_id_retrieved = history['historyId']
-                return None, None
+        message_ids = []
+        for event in history['history']:
+            if 'messagesAdded' in event:
+                message_ids.append({'id': event['messagesAdded'][0]['message']['id']})
+                if len(event['messagesAdded']) > 1:
+                    print("History message has more than 1 entry!!! WAT???!!!")
 
-        except Exception as excep:
-            print(excep)
-            raise excep
+        if len(message_ids) < 1:
+            # No added messages were in the response.
+            self.newest_history_id_retrieved = history['historyId']
+            return None, None
 
         return message_ids, history['historyId']
 
@@ -169,7 +180,6 @@ class Gmail:
             msg_str = base64.urlsafe_b64decode(message['raw'].encode('ASCII'))
             decoded_str = msg_str.decode('utf-8', errors='ignore')
             mime_msg = email.message_from_string(decoded_str)
-
 
             return mime_msg, message
         except errors.HttpError as error:

@@ -6,11 +6,12 @@ Classes to store Package Data
 Based on https://github.com/aheadley/packagetrack/
 """
 
-import datetime
+# import datetime
 import dill
-# from Tracking import Tracker
+
 import Tracking.Tracker as Tracker
 from Tracking.TrackingData import TrackingInfo
+
 
 
 class Package:
@@ -20,7 +21,7 @@ class Package:
     def __init__(self, carrier, tracking_number, name=None):
 
         self.name = name
-        self.carrier = Tracker.identify_carrier(carrier)  # type: Tracking\Carriers/BaseInterface/BaseInterface
+        self.carrier = Tracker.identify_carrier(carrier)
         self.number = tracking_number
         self._info = TrackingInfo(None)  # self.carrier.track(self.number)  # type: TrackingInfo
         self.new_event_callback = lambda x: None
@@ -45,7 +46,7 @@ class Package:
 
     def get_tracking_data(self):
         # self.carrier.get_tracking_data(self.number)
-        self.info = self.carrier.track(self.number)  # type: TrackingInfo
+        self.info = self.carrier.track(self.number)
 
 
 class Packages:
@@ -77,9 +78,6 @@ class Packages:
     def update_tracking(self):
         for package in self.packages:
             package.get_tracking_data()
-
-
-
 
 
 if __name__ == '__main__':

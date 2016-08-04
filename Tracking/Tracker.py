@@ -34,6 +34,13 @@ def register_carrier(carrier_iface, config):
 
 
 def identify_carrier(carrier_name):
+    """
+    Returns the carrier interface from the carrier identifier
+    :param carrier_name: The carrier identifier
+    :type carrier_name: str
+    :return: The carrier interface
+    :rtype: USPSInterface
+    """
     try:
         return __carriers[carrier_name.lower()]
     except KeyError:
