@@ -2,6 +2,7 @@ import datetime
 import logging
 import requests
 import yaml
+import time
 
 import xml_dict
 from Tracking.Carriers.BaseInterface import BaseInterface
@@ -9,7 +10,7 @@ from Tracking.errors import *
 from Tracking.TrackingData import TrackingInfo
 from xml_dict import xml_to_dict
 
-logger = logging.getLogger('USPS_Interface')
+# logger = logging.getLogger('USPS_Interface')
 
 
 class USPSInterface(BaseInterface):
@@ -58,6 +59,7 @@ class USPSInterface(BaseInterface):
 
     def __init__(self, config):
         BaseInterface.__init__(self, config)
+        self._log = logging.getLogger(self.__class__.__name__)
 
     def __str__(self):
         return self.SHORT_NAME
@@ -155,7 +157,13 @@ class USPSInterface(BaseInterface):
     def _send_request(self, tracking_number):
         url = self._api_urls[self._config['server_mode']] + \
             self._build_request(tracking_number)
-        return requests.get(url).text
+        try:
+            response = requests.get(url).text
+        except requests.exceptions.ConnectionError as err:
+            self._log.warning("Connection Error. Retrying in 1 second. {}".format(err))
+            time.sleep(1)
+            return self._send_request(tracking_number)
+        return response
 
     def _getTrackingDate(self, node):
         """Returns a datetime object for the given node's

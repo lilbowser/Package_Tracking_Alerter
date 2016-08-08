@@ -3,15 +3,31 @@ MIT License
 Copyright (c) 2016 Ashley Goldfarb
 """
 
+import re
+import time
+import datetime
+import logging
+
+import yaml
+from slacker import Slacker
+from slacksocket import SlackSocket
 
 from GmailScanner import Gmail
 from Tracking.Packages import Packages
 from Tracking.Packages import Package  # Only here for type hinting.
 
-from slacker import Slacker
-import yaml
-import re
-import time
+logging.basicConfig(level=logging.WARNING,
+                    format="[%(asctime)s] %(name)s: %(funcName)s:%(lineno)d %(levelname)s:-8s %(message)s",
+                    datefmt='%m-%d %H:%M',
+                    filename='Package_Tracker.log',
+                    filemode='w')
+
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+# formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
+formatter = logging.Formatter("[%(asctime)s] %(name)s: %(funcName)s:%(lineno)d %(levelname)s:-8s %(message)s")
+console.setFormatter(formatter)
+logging.getLogger('').addHandler(console)
 
 
 def load_config(config_file_name):
@@ -20,6 +36,9 @@ def load_config(config_file_name):
 
 config = load_config('secrets.yaml')
 slack = Slacker(config['slack']['key'])
+slack_socket = SlackSocket(config['slack']['key'])
+
+start_time = datetime.datetime.now()
 
 
 def new_email_received(_emails):
@@ -35,9 +54,13 @@ def new_email_received(_emails):
 
 
 def new_tracking_event(package: Package):
-    slack.chat.post_message('#general', 'Package {} is now {} at {}'.format(package.name, package.info.events[-1].detail,
+    slack.chat.post_message('#general', 'Package {} is now {} at {}'.format(package.package_name, package.info.events[-1].detail,
                                                                             package.info.events[-1].location))
 
+
+def new_email_address_event(package: Package):
+    slack.chat.post_message('#general', 'Package {} is now {} at {}'.format(package.email_address, package.info.events[-1].detail,
+                                                                            package.info.events[-1].location))
 
 def search_for_tracking(content):  # TODO: Consider a more appropriate location for this.
     """
@@ -69,17 +92,56 @@ def search_for_tracking(content):  # TODO: Consider a more appropriate location 
     return None, None
 
 
+def get_event():
+    try:
+        e = slack_socket._eventq.pop(0)
+        return e
+    except IndexError:
+        return None
+
+
+def get_events():
+    ret = []
+    while True:
+        rsp = get_event()
+        if rsp is not None:
+            ret.append(rsp)
+        else:
+            break
+    return ret
+
 if __name__ == '__main__':
     gmail = Gmail()
     packages = Packages()
 
     gmail.new_email_callback = new_email_received
-    packages.define_callback(new_tracking_event)
-
+    packages.define_callbacks(new_tracking_event)
+    count = 0
     while True:
-        gmail.get_recent_messages()
-        packages.update_tracking()
+
+        if count%10 == 0:
+            gmail.get_recent_messages()
+            packages.update_tracking()
+
+        for event in get_events():
+            # print(event.json)
+            if event.event['type'] == 'message':
+                try:
+                    print("{} said {}".format(event.event['user'], event.event['text']))
+                except KeyError:
+                    pass
+                if event.event['text'].lower() == 'time':
+                    # slack.send_msg("the current time is {}".format(datetime.datetime.now()),
+                                   # channel_name=event.event['channel'])
+
+                    slack.chat.post_message(event.event['channel'], "The current time is {}".format(datetime.datetime.now()))
+                elif event.event['text'].lower() == 'uptime':
+                    uptime = datetime.datetime.now() - start_time
+                    slack.chat.post_message(event.event['channel'], "I have been running for {}".format(uptime))
 
         print("waiting 10 seconds")
-        time.sleep(10)
+
+        time.sleep(1)
+        count += 1
+
 

@@ -10,6 +10,7 @@ import os
 import re
 import logging
 import copy
+import time
 
 import httplib2
 import oauth2client
@@ -32,7 +33,7 @@ SCOPES = 'https://www.googleapis.com/auth/gmail.readonly'
 CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'Gmail API Python Quickstart'
 
-logger = logging.getLogger('GMail')
+# logger = logging.getLogger('GMail')
 
 
 class Gmail:
@@ -43,6 +44,8 @@ class Gmail:
         Constructor for Gmail
         Initilizes the conection to the Gmail servers.
         """
+
+        self._log = logging.getLogger(self.__class__.__name__)
 
         self.credentials = self.get_credentials()
         self.http = self.credentials.authorize(httplib2.Http())
@@ -78,13 +81,14 @@ class Gmail:
             if len(self.email) > 0:  # Sanity Check
                 raise RuntimeError("No record of last history id, yet we have stored email!")
 
-            message_ids = self.full_email_sync()['messages']
+            message_ids = self.full_email_sync(number=50)['messages']
         else:
             try:
                 message_ids, new_history_id = self.incremental_email_sync()
             except errors.HttpError:
-                logger.warning(
-                    "Partial sync encountered a 404 error. The HistoryID may be out of date or invalid. Preforming full sync.")
+                self._log.warning(
+                    "Partial sync encountered a 404 error. The HistoryID may be out of date or invalid. \
+                    Preforming full sync.")
                 message_ids = self.full_email_sync()['messages']
 
             if message_ids is None:
@@ -110,7 +114,7 @@ class Gmail:
         return True
 
 
-    def full_email_sync(self):
+    def full_email_sync(self, number=100, call_count=0):
         """
         Preforms a full email sync and clears the email buffer if there are email present
 
@@ -122,23 +126,89 @@ class Gmail:
             self.email = []
         try:
             response = self.service.users().messages().list(userId="me", maxResults=10, includeSpamTrash=False).execute()
-        except Exception as error:
-            print(error)
-            raise error
+        except httplib2.HttpLib2Error as e:
 
-        return response
+            if call_count < 5:
+                new_count = call_count + 1
+                self._log.exception("HttpLib2 Error. Retrying in {}} seconds.".format(new_count))
+                time.sleep(new_count)
+                return self.full_email_sync(call_count=new_count)
+            else:
+                raise e
+
+        except Exception as e:
+            if call_count < 5:
+                new_count = call_count + 1
+                self._log.exception("Unknown Error. Retrying in {}} seconds.".format(new_count))
+                time.sleep(new_count)
+                return self.incremental_email_sync(call_count=new_count)
+            else:
+                raise e
+
+        messages = response['messages']
+        need_more_emails = True
+        while need_more_emails:
+            if len(messages) >= number:
+                break
+            if 'nextPageToken' in response:
+                try:
+                    response = self.service.users().messages().list(userId="me", pageToken=response['nextPageToken'],
+                                                                    maxResults=10, includeSpamTrash=False).execute()
+                except httplib2.HttpLib2Error as e:
+
+                    if call_count < 5:
+                        new_count = call_count + 1
+                        self._log.exception("HttpLib2 Error. Retrying in {}} seconds.".format(new_count))
+                        time.sleep(new_count)
+                        return self.full_email_sync(call_count=new_count)
+                    else:
+                        raise e
+
+                except Exception as e:
+                    if call_count < 5:
+                        new_count = call_count + 1
+                        self._log.exception("Unknown Error. Retrying in {}} seconds.".format(new_count))
+                        time.sleep(new_count)
+                        return self.incremental_email_sync(call_count=new_count)
+                    else:
+                        raise e
+
+                messages.extend(response['messages'])
+            else:
+                break
+
+        return {'messages': messages}
 
 
-    def incremental_email_sync(self):
+    def incremental_email_sync(self, call_count=0):
         """
         Preforms an incremental sync from the last history id recorded
 
         Returns: A list of message ids or None if there are no new messages
 
         """
+        try:
+            history = self.service.users().history().list(userId="me",
+                                                          startHistoryId=self.newest_history_id_retrieved).execute()
+        except httplib2.HttpLib2Error as e:
 
-        history = self.service.users().history().list(userId="me",
-                                                      startHistoryId=self.newest_history_id_retrieved).execute()
+            if call_count < 5:
+                new_count = call_count + 1
+                self._log.exception("HttpLib2 Error. Retrying in {}} seconds.".format(new_count))
+                time.sleep(new_count)
+                return self.incremental_email_sync(call_count=new_count)
+            else:
+                raise e
+
+        except Exception as e:
+            if call_count < 5:
+                new_count = call_count + 1
+                self._log.exception("Unknown Error. Retrying in {}} seconds.".format(new_count))
+                time.sleep(new_count)
+                return self.incremental_email_sync(call_count=new_count)
+            else:
+                raise e
+
         if 'history' not in history:
             # No new messages to download
             self.newest_history_id_retrieved = history['historyId']
@@ -308,9 +378,6 @@ class Gmail:
         p_email['id'] = _id
 
         return p_email
-
-
-
 
     #endregion
 
