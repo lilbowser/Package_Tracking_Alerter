@@ -57,7 +57,6 @@ def new_tracking_event(package: Package):
     slack.chat.post_message('#general', 'Package {} is now {} at {}'.format(package.package_name, package.info.events[-1].detail,
                                                                             package.info.events[-1].location))
 
-
 def new_email_address_event(package: Package):
     slack.chat.post_message('#general', 'Package {} is now {} at {}'.format(package.email_address, package.info.events[-1].detail,
                                                                             package.info.events[-1].location))
@@ -122,6 +121,7 @@ if __name__ == '__main__':
         if count%10 == 0:
             gmail.get_recent_messages()
             packages.update_tracking()
+            print("waiting 10 seconds")
 
         for event in get_events():
             # print(event.json)
@@ -139,7 +139,7 @@ if __name__ == '__main__':
                     uptime = datetime.datetime.now() - start_time
                     slack.chat.post_message(event.event['channel'], "I have been running for {}".format(uptime))
 
-        print("waiting 10 seconds")
+
 
         time.sleep(1)
         count += 1

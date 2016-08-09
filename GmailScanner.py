@@ -130,7 +130,7 @@ class Gmail:
 
             if call_count < 5:
                 new_count = call_count + 1
-                self._log.exception("HttpLib2 Error. Retrying in {}} seconds.".format(new_count))
+                self._log.exception("HttpLib2 Error. Retrying in {} seconds.".format(new_count))
                 time.sleep(new_count)
                 return self.full_email_sync(call_count=new_count)
             else:
@@ -139,7 +139,7 @@ class Gmail:
         except Exception as e:
             if call_count < 5:
                 new_count = call_count + 1
-                self._log.exception("Unknown Error. Retrying in {}} seconds.".format(new_count))
+                self._log.exception("Unknown Error. Retrying in {} seconds.".format(new_count))
                 time.sleep(new_count)
                 return self.incremental_email_sync(call_count=new_count)
             else:
@@ -158,7 +158,7 @@ class Gmail:
 
                     if call_count < 5:
                         new_count = call_count + 1
-                        self._log.exception("HttpLib2 Error. Retrying in {}} seconds.".format(new_count))
+                        self._log.exception("HttpLib2 Error. Retrying in {} seconds.".format(new_count))
                         time.sleep(new_count)
                         return self.full_email_sync(call_count=new_count)
                     else:
@@ -167,7 +167,7 @@ class Gmail:
                 except Exception as e:
                     if call_count < 5:
                         new_count = call_count + 1
-                        self._log.exception("Unknown Error. Retrying in {}} seconds.".format(new_count))
+                        self._log.exception("Unknown Error. Retrying in {} seconds.".format(new_count))
                         time.sleep(new_count)
                         return self.incremental_email_sync(call_count=new_count)
                     else:
@@ -194,7 +194,7 @@ class Gmail:
 
             if call_count < 5:
                 new_count = call_count + 1
-                self._log.exception("HttpLib2 Error. Retrying in {}} seconds.".format(new_count))
+                self._log.exception("HttpLib2 Error. Retrying in {} seconds.".format(new_count))
                 time.sleep(new_count)
                 return self.incremental_email_sync(call_count=new_count)
             else:
@@ -203,7 +203,7 @@ class Gmail:
         except Exception as e:
             if call_count < 5:
                 new_count = call_count + 1
-                self._log.exception("Unknown Error. Retrying in {}} seconds.".format(new_count))
+                self._log.exception("Unknown Error. Retrying in {} seconds.".format(new_count))
                 time.sleep(new_count)
                 return self.incremental_email_sync(call_count=new_count)
             else:
