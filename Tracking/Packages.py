@@ -13,14 +13,10 @@ import logging
 import Tracking.Tracker as Tracker
 from Tracking import errors
 from Tracking.TrackingData import TrackingInfo
+import utils
 
-
-undesirable_email_addresses =[
-    '***REMOVED***',
-    '***REMOVED***',
-    '***REMOVED***',
-    '***REMOVED***'
-]
+config = utils.load_api_config("secrets.yaml")
+undesirable_email_addresses = config['undesirable_email_addresses']
 
 
 class Package:
@@ -99,11 +95,16 @@ class Package:
 
     def get_tracking_data(self):
         # self.carrier.get_tracking_data(self.number)
-        self.info = self.carrier.track(self.number)
+        try:
+            self.info = self.carrier.track(self.number)
+        except (errors.TrackingNetworkFailure, errors.TrackingApiFailure) as e:
+            self._log.exception("Unable to get tracking information for {} using {}".format(self.number, self.carrier))
 
 
 class Packages:
-
+    """
+    Stores and works with all Package()'s that we are tracking.
+    """
     def __init__(self):
         self.packages = []  # type: List[Package]
         self.new_event_callback = lambda x: None
@@ -144,6 +145,32 @@ class Packages:
                 package.get_tracking_data()
             except errors.TrackingNumberFailure as e:
                 self._log.exception()
+
+    def one_two_pickle_your_shoe(self):
+        """
+        Serializes instance of Packages() to pickle file.
+        :return:
+        :rtype:
+        """
+
+        with open('package_data.pickle', 'wb') as file:
+            dill.dump(self, file)
+
+    @staticmethod
+    def load_from_pickle():
+        """
+        Returns a new Packages() initialized from pickled data.
+        If no pickled data exists, we return a newly initialized Packages().
+
+        :return: A new initialized Packages()
+        :rtype: Packages
+        """
+        try:
+            with open('package_data.pickle1', 'rb') as file:
+                ret = dill.load(file)
+                return ret
+        except FileNotFoundError:
+            return Packages()
 
 
 
