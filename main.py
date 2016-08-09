@@ -11,6 +11,8 @@ import logging
 import yaml
 from slacker import Slacker
 from slacksocket import SlackSocket
+from SlackBot import SlackInterface
+import utils
 
 from GmailScanner import Gmail
 from Tracking.Packages import Packages
@@ -30,12 +32,9 @@ console.setFormatter(formatter)
 logging.getLogger('').addHandler(console)
 
 
-def load_config(config_file_name):
-    with open(config_file_name) as _config:
-        return yaml.load(_config)["api_keys"]
+config = utils.load_api_config('secrets.yaml')
 
-config = load_config('secrets.yaml')
-slack = Slacker(config['slack']['key'])
+slack = SlackInterface(config['slack']['key'], )
 slack_socket = SlackSocket(config['slack']['key'])
 
 start_time = datetime.datetime.now()
@@ -49,16 +48,16 @@ def new_email_received(_emails):
             # Found a tracking number, attempt to add it to the packages list.
             success = packages.add_package(carrier, tracking_number, name=email["from_address"])
             if success:
-                slack.chat.post_message('#general', 'New tracking number detected: {} from {}'.format(
+                slack.post_message('#general', 'New tracking number detected: {} from {}'.format(
                     tracking_number, email['from_address']))
 
 
 def new_tracking_event(package: Package):
-    slack.chat.post_message('#general', 'Package {} is now {} at {}'.format(package.package_name, package.info.events[-1].detail,
+    slack.post_message('#general', 'Package {} is now {} at {}'.format(package.package_name, package.info.events[-1].detail,
                                                                             package.info.events[-1].location))
 
 def new_email_address_event(package: Package):
-    slack.chat.post_message('#general', 'Package {} is now {} at {}'.format(package.email_address, package.info.events[-1].detail,
+    slack.post_message('#general', 'Package {} is now {} at {}'.format(package.email_address, package.info.events[-1].detail,
                                                                             package.info.events[-1].location))
 
 def search_for_tracking(content):  # TODO: Consider a more appropriate location for this.
@@ -111,7 +110,7 @@ def get_events():
 
 if __name__ == '__main__':
     gmail = Gmail()
-    packages = Packages()
+    packages = Packages().load_from_pickle()
 
     gmail.new_email_callback = new_email_received
     packages.define_callbacks(new_tracking_event)
@@ -131,13 +130,10 @@ if __name__ == '__main__':
                 except KeyError:
                     pass
                 if event.event['text'].lower() == 'time':
-                    # slack.send_msg("the current time is {}".format(datetime.datetime.now()),
-                                   # channel_name=event.event['channel'])
-
-                    slack.chat.post_message(event.event['channel'], "The current time is {}".format(datetime.datetime.now()))
+                    slack.post_message(event.event['channel'], "The current time is {}".format(datetime.datetime.now()))
                 elif event.event['text'].lower() == 'uptime':
                     uptime = datetime.datetime.now() - start_time
-                    slack.chat.post_message(event.event['channel'], "I have been running for {}".format(uptime))
+                    slack.post_message(event.event['channel'], "I have been running for {}".format(uptime))
 
 
 

@@ -95,10 +95,17 @@ class Package:
 
     def get_tracking_data(self):
         # self.carrier.get_tracking_data(self.number)
+        updated = False
         try:
+            new_info = self.carrier.track(self.number)
+            if new_info != self.info:
+                updated = True
+
             self.info = self.carrier.track(self.number)
+            return updated
         except (errors.TrackingNetworkFailure, errors.TrackingApiFailure) as e:
             self._log.exception("Unable to get tracking information for {} using {}".format(self.number, self.carrier))
+            return updated
 
 
 class Packages:
@@ -139,12 +146,21 @@ class Packages:
             return False
 
     def update_tracking(self):
-
+        """
+        Updates the tracking info of all packages.
+        If a package gets updated, rePickle the class.
+        :return:
+        :rtype: None
+        """
+        need_to_pickle = False
         for package in self.packages:
             try:
-                package.get_tracking_data()
+                if package.get_tracking_data():
+                    need_to_pickle = True
             except errors.TrackingNumberFailure as e:
                 self._log.exception()
+        if need_to_pickle:
+            self.one_two_pickle_your_shoe()
 
     def one_two_pickle_your_shoe(self):
         """
@@ -166,7 +182,7 @@ class Packages:
         :rtype: Packages
         """
         try:
-            with open('package_data.pickle1', 'rb') as file:
+            with open('package_data.pickle', 'rb') as file:
                 ret = dill.load(file)
                 return ret
         except FileNotFoundError:

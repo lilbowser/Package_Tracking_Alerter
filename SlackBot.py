@@ -6,26 +6,47 @@ Slacker Test Code
 """
 
 from slacker import Slacker
-from slacksocket import SlackSocket
+import utils
 
-import yaml
 import datetime
 
 
-def load_config(config_file_name):
-    with open(config_file_name) as config:
-        return yaml.load(config)["api_keys"]
+class SlackInterface:
 
-# def send_slack_message(body, channel="#general", username="packages"):
-    # slack.chat.post_message(
+    def __init__(self, api_token, default_name="packages", default_normal_user=False,
+                 default_icon="http://i.imgur.com/MFB7wOd.png"):
+        self.api_token = api_token
+        self.slack = Slacker(api_token)
+        self.default_name = default_name
+        self.default_normal_user = default_normal_user
+        self.default_icon = default_icon
+
+    @property
+    def chat(self):
+        return self.slack.chat
+
+    def post_message(self, channel="#general", body=None, username=None, icon_url=None):
+        if username is None:
+            username = self.default_name
+        if icon_url is None:
+            icon_url = self.default_icon
+
+        if body is not None:
+            self.slack.chat.post_message(channel, body, username=username, as_user=False,
+                                         icon_url=icon_url)
+
+
+
 
 if __name__ == '__main__':
 
-    config = load_config('secrets.yaml')
-    slack = Slacker(config['slack']['key'])
+    config = utils.load_api_config('secrets.yaml')
+    # slack = Slacker(config['slack']['key'])
+    slack = SlackInterface(config['slack']['key'])
 
     # Send a message to #general channel
-    slack.chat.post_message('#general', 'Hello fellow slackers! The current time is {}.'.format(datetime.datetime.now()))
+    # slack.chat.post_message('#general', 'Hello fellow slackers! The current time is {}.'.format(datetime.datetime.now()))
+    slack.post_message(body='Hello fellow slackers! The current time is {}.'.format(datetime.datetime.now()))
 
     # Get users list
     # response = slack.users.list()
