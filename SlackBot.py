@@ -16,8 +16,8 @@ def load_config(config_file_name):
     with open(config_file_name) as config:
         return yaml.load(config)["api_keys"]
 
-def send_slack_message(body, channel="#general", username="packages"):
-    slack.chat.post_message(
+# def send_slack_message(body, channel="#general", username="packages"):
+    # slack.chat.post_message(
 
 if __name__ == '__main__':
 
