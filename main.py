@@ -20,7 +20,7 @@ from Tracking.Packages import Package  # Only here for type hinting.
 
 logging.basicConfig(level=logging.WARNING,
                     format="[%(asctime)s] %(name)s: %(funcName)s:%(lineno)d %(levelname)s:-8s %(message)s",
-                    datefmt='%m-%d %H:%M',
+                    datefmt='%m-%d %H:%M:%S',
                     filename='Package_Tracker.log',
                     filemode='w')
 

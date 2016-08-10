@@ -97,8 +97,13 @@ class Gmail:
 
         new_messages = []
         for message_id in message_ids:
+            try:
+                mime_msg, gmail_msg = self.get_mime_message(self.service, "me", message_id['id'])
+            except TypeError as e:
+                self._log.exception("Exception getting Messages. Forcing full sync")
+                self.newest_history_id_retrieved = None
+                return False
 
-            mime_msg, gmail_msg = self.get_mime_message(self.service, "me", message_id['id'])
             unpacked_msg = self.unpack_email(mime_msg, gmail_msg, message_id['id'])
             new_messages.append(unpacked_msg)
 
@@ -229,7 +234,7 @@ class Gmail:
         return message_ids, history['historyId']
 
 
-    def get_mime_message(self, service, user_id, msg_id):
+    def get_mime_message(self, service, user_id, msg_id, count=0):
         """Get a Message and use it to create a MIME Message.
 
         Args:
@@ -253,7 +258,12 @@ class Gmail:
 
             return mime_msg, message
         except errors.HttpError as error:
-            print('An error occurred: %s' % error)
+            self._log.exception('An error occurred:')
+            if count < 5:
+                ncount = count + 1
+                return self.get_mime_message(service, user_id, msg_id, ncount)
+            else:
+                self._log.critical("Exceeded max number of retries. Skipping message.")
 
 
     #region Gmail Interface Methods
