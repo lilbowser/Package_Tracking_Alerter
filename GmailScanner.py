@@ -65,21 +65,12 @@ class Gmail:
         self._new_email = value
         self.new_email_callback(self._new_email)
 
-    def history_test(self):
-        # message_ids = self.service.users().messages().list(userId="me", includeSpamTrash=False).execute()
-        # message_response = self.service.users().messages().get(userId="me", id='1564d571a97815be', format="raw").execute()
-        history = self.service.users().history().list(userId="me", startHistoryId='9945333').execute()
-        message_ids = history['history']['messages']
-
 
     def get_recent_messages(self):
         filter_params = 'in: all -label:"Trash" -label:"Spam"'
         if self.newest_history_id_retrieved is None:
             # We have no record of the last message we have stored (this is probably the first run)
             # Preform a full sync
-
-            if len(self.email) > 0:  # Sanity Check
-                raise RuntimeError("No record of last history id, yet we have stored email!")
 
             message_ids = self.full_email_sync(number=50)['messages']
         else:
@@ -128,6 +119,7 @@ class Gmail:
         """
 
         if len(self.email) > 0:
+            # Clear email buffer when preforming a full sync
             self.email = []
         try:
             response = self.service.users().messages().list(userId="me", maxResults=10, includeSpamTrash=False).execute()
@@ -257,10 +249,11 @@ class Gmail:
             mime_msg = email.message_from_string(decoded_str)
 
             return mime_msg, message
-        except errors.HttpError as error:
+        except errors.HttpError as error:  # TODO: figure out how to detect Not Found
             self._log.exception('An error occurred:')
             if count < 5:
                 ncount = count + 1
+                time.sleep(ncount)
                 return self.get_mime_message(service, user_id, msg_id, ncount)
             else:
                 self._log.critical("Exceeded max number of retries. Skipping message.")
