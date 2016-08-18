@@ -14,7 +14,7 @@ import Tracking.Tracker as Tracker
 from Tracking import errors
 from Tracking.TrackingData import TrackingInfo
 import utils
-
+import datetime
 config = utils.load_api_config("secrets.yaml")
 undesirable_email_addresses = config['undesirable_email_addresses']
 
@@ -35,8 +35,12 @@ class Package:
 
         self._email_address = None
         self._undesirable_email_address = True
+        self.custom_name = None
+
         self.email_address = email_address
         self.email_subject = email_subject
+
+        self.last_message_sent = datetime.datetime.min
 
     @property
     def info(self):
@@ -80,17 +84,21 @@ class Package:
 
     @property
     def package_name(self):
-
-        if self.email_subject is not None and self.email_address:
-            name = "{} {} <{}>".format(self.email_subject, self.number, self.email_address)
+        if self.custom_name is not None:
+            name = "{} ({})".format(self.custom_name, self.number)
+        elif self.email_subject is not None and self.email_address:
+            name = "{} ({}) <{}>".format(self.email_subject, self.number, self.email_address)
         elif self.email_subject is not None:
-            name = "{} {}".format(self.email_subject, self.number)
+            name = "{} ({})".format(self.email_subject, self.number)
         elif self.email_address is not None:
-            name = "{} {}".format(self.email_address, self.number)
+            name = "{} ({})".format(self.email_address, self.number)
         else:
             name = "{}".format(self.number)
 
         return name
+
+    def __str__(self):
+        return self.package_name
 
 
     def get_tracking_data(self):
@@ -126,7 +134,7 @@ class Packages:
             package.new_event_callback = event_callback_function
             package.new_email_address_callback = email_address_callback
 
-    def add_package(self, carrier, tracking_number, name=None):
+    def add_package(self, carrier, tracking_number, name=None, subject=None):
         duplicate = False
 
         for package in self.packages:
@@ -138,12 +146,38 @@ class Packages:
                         package.email_address = name
 
         if not duplicate:
-            new_package = Package(carrier, tracking_number, name)
+            new_package = Package(carrier, tracking_number, name, subject)
             new_package.new_event_callback = self.new_event_callback
             self.packages.append(new_package)
             return True
         else:
             return False
+
+    def most_recent_updated_package(self):
+        latest_time = datetime.datetime.min
+        latest_msg = None
+        for package in self.packages:
+            if package.last_message_sent > latest_time:
+                latest_msg = package
+                latest_time = package.last_message_sent
+
+        return latest_msg
+
+    def search_for_package(self, search_term):
+
+        carrier, tracking_number = Tracker.search_for_tracking_number(search_term)
+        if tracking_number is not None:
+            # the search term is a tracking number. Match using numbers
+            for package in self.packages:
+                if str(package.number) == tracking_number:
+                    return package
+        else:
+            # The search term is something else.... Lets search everything?
+            for package in self.packages:
+                if search_term.lower() in str(package).lower():
+                    return package
+
+        return None
 
     def update_tracking(self):
         """
@@ -153,12 +187,18 @@ class Packages:
         :rtype: None
         """
         need_to_pickle = False
+        packages_ro_remove = []
         for package in self.packages:
             try:
                 if package.get_tracking_data():
                     need_to_pickle = True
             except errors.TrackingNumberFailure as e:
-                self._log.exception()
+                self._log.exception("Tracking Number Failure. Removing package {} from the system.".format(package))
+                packages_ro_remove.append(package)
+
+        for package in packages_ro_remove:
+            self.packages.remove(package)
+
         if need_to_pickle:
             self.one_two_pickle_your_shoe()
 

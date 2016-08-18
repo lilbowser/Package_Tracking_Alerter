@@ -8,6 +8,7 @@ Based on https://github.com/aheadley/packagetrack/
 
 # import requests
 import yaml
+import re
 
 # import xml_dict
 # from Packages import Packages
@@ -76,6 +77,45 @@ def identify_smart_post_number(tracking_number):
             raise UnsupportedTrackingNumber(tracking_number)
     else:
         raise InvalidTrackingNumber(tracking_number)
+
+
+def search_for_tracking_number(content):
+    """
+    Searches for valid USPS, UPS, Fedex, EMS, and SAL Tracking numbers
+    :param content: Content to search through
+    :type content: str
+    :return: (Shipping Service, Tracking Number) Returns (none, none) if no match is found..
+    :rtype: (str, str)
+    """
+    for carrier in __carriers.values():
+        carrier_id, tnum = carrier.search_for_tracking(content)  # carrier_id, tnum
+        if tnum is not None:
+            valid = carrier.verify_tracking_number(tnum)
+            if valid:
+                return carrier_id, tnum  # TODO: return actual carrier object, not carrier_ID
+
+    return None, None
+
+    #
+    # # USPS
+    # search = re.search(r"((?:92|93|94|95)(?:\d{20}|\d{24}))\b", content)
+    # if search is not None:
+    #     # print("Found tracking number: " + search.groups()[0])
+    #     return "usps", search.groups()[0]
+    #
+    # # UPS
+    # search = re.search(r"\b(1Z ?[0-9A-Z]{3} ?[0-9A-Z]{3} ?[0-9A-Z]{2} ?[0-9A-Z]{4} ?[0-9A-Z]{3} ?[0-9A-Z])\b",
+    #                    content)
+    # if search is not None:
+    #     return "ups", search.groups()[0]
+    #
+    # # Japan Post
+    # search = re.search(r"((?:[A-Z]|[a-z]){2}\d{9}JP)\b", content)
+    # if search is not None:
+    #     return "japan_post", search.groups()[0]
+    #
+    # # if no match
+    # return None, None
 
 configuration = load_config("secrets.yaml")
 register_carrier(USPSInterface, configuration['usps'])

@@ -30,6 +30,12 @@ class BaseInterface(object):
     def identify(self, tracking_number):
         raise NotImplementedError()
 
+    def search_for_tracking(self, content):
+        raise NotImplementedError()
+
+    def verify_tracking_number(self, tracking_number):
+        raise NotImplementedError()
+
     def track(self, tracking_number):
         raise NotImplementedError()
 

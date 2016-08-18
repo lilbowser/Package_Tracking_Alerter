@@ -3,6 +3,7 @@ import logging
 import requests
 import yaml
 import time
+import re
 
 import xml_dict
 from Tracking.Carriers.BaseInterface import BaseInterface
@@ -70,14 +71,95 @@ class USPSInterface(BaseInterface):
         return self._parse_response(resp, tracking_number)
 
     def identify(self, tracking_number):
-        # TODO: Broken?
-        return {
-            13: lambda tn: \
-                tn[0:2].isalpha() and tn[2:9].isdigit() and tn[11:13].isalpha(),
-            20: lambda tn: tn.isdigit() and tn.startswith('0'),
-            22: lambda tn: tn.isdigit(),
-            30: lambda tn: tn.isdigit(),
-        }.get(len(tracking_number), lambda tn: False)(tracking_number)
+        """
+        Returns true if tracking number belongs to this interface
+        :param tracking_number:
+        :type tracking_number:
+        :return:
+        :rtype:
+        """
+        # #
+        # return {
+        #     13: lambda tn: \
+        #         tn[0:2].isalpha() and tn[2:9].isdigit() and tn[11:13].isalpha(),
+        #     20: lambda tn: tn.isdigit() and tn.startswith('0'),
+        #     22: lambda tn: tn.isdigit(),
+        #     30: lambda tn: tn.isdigit(),
+        # }.get(len(tracking_number), lambda tn: False)(tracking_number)
+        carrier, tnum = self.search_for_tracking(tracking_number)
+        if tnum is not None:
+            if self.verify_tracking_number(tracking_number): # TODO: Consider verifying using the returned tnumber
+                return True
+        return False
+
+
+    def search_for_tracking(self, content):
+        """
+        Find tracking numbers in text
+        :param content:
+        :type content:
+        :return: carrier_id, tracking_number
+        :rtype:
+        """
+        # USPS
+        search = re.search(r"((?:92|93|94|95)(?:\d{20}|\d{24}))\b", content)
+        if search is not None:
+            # print("Found tracking number: " + search.groups()[0])
+            return "usps", search.groups()[0]
+        else:
+            return None, None
+
+
+    def verify_tracking_number(self, tracking_number):
+        """
+        Uses the MOD 10 check from page 42 of USPS_PUB199IMPBImpGuide.pdf
+        Works on 22-26 digit USPS Tracking numbers. Does not yet work on international tracking numbers.
+        :param tracking_number: the tracking number to verify
+        :type tracking_number: str
+        :return: Is tracking number valid
+        :rtype: bool
+        """
+
+        # USPS Check
+        try:
+            check_digit = int(tracking_number[-1])
+
+            numbers = []
+            for letter in tracking_number:
+                numbers.append(int(letter))
+            numbers.reverse()
+        except ValueError:
+            # If the tracking number has letters in it
+            return False
+
+        sum1 = 0
+        for number in numbers[1::2]:
+            sum1 += number
+
+        sum1 *= 3
+        sum2 = 0
+        for number in numbers[2::2]:
+            sum2 += number
+
+        final_sum = sum1 + sum2
+        computed_check_digit = 0
+        while (final_sum + computed_check_digit) % 10 != 0:
+            computed_check_digit += 1
+            mod = (final_sum + computed_check_digit) % 10
+            # if mod == 0:
+            #     print("Incrementing Computed Check digit to {}. Mod is 0! Found check digit.".format(
+            #         computed_check_digit))
+            # else:
+            #     print("Incrementing Computed Check digit to {}. Mod is {}! Continuing search.".format(
+            #         computed_check_digit, mod))
+
+        if check_digit == computed_check_digit:
+            # print("Check Successful")
+            return True
+        else:
+            # print("Check Failed. Expected {}, got {}".format(check_digit, computed_check_digit))
+            return False
+
 
     def is_delivered(self, tracking_number, tracking_info=None):
         # TODO: This is broken

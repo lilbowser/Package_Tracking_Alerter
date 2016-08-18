@@ -1,22 +1,26 @@
 """
 MIT License
 Copyright (c) 2016 Ashley Goldfarb
+
+Consider using http://curiosityhealsthecat.blogspot.com/2013/07/using-python-decorators-for-registering_8614.html
+for callback functions
+
 """
 
 import re
 import time
-import datetime
 import logging
 
-import yaml
-from slacker import Slacker
-from slacksocket import SlackSocket
+# import yaml
+# from slacker import Slacker
+# from slacksocket import SlackSocket
 from SlackBot import SlackInterface
 import utils
-
+import datetime
 from GmailScanner import Gmail
 from Tracking.Packages import Packages
 from Tracking.Packages import Package  # Only here for type hinting.
+import Tracking.Tracker as Tracker
 
 logging.basicConfig(level=logging.WARNING,
                     format="[%(asctime)s] %(name)s: %(funcName)s:%(lineno)d %(levelname)s:-8s %(message)s",
@@ -34,79 +38,103 @@ logging.getLogger('').addHandler(console)
 
 config = utils.load_api_config('secrets.yaml')
 
-slack = SlackInterface(config['slack']['key'], )
-slack_socket = SlackSocket(config['slack']['key'])
-
+slack = SlackInterface(config['slack']['key'])  # Type: SlackInterface
 start_time = datetime.datetime.now()
 
 
 def new_email_received(_emails):
 
     for email in _emails:
-        carrier, tracking_number = search_for_tracking(email['body'])
+        carrier, tracking_number = Tracker.search_for_tracking_number(email['body'])
         if tracking_number is not None:
             # Found a tracking number, attempt to add it to the packages list.
-            success = packages.add_package(carrier, tracking_number, name=email["from_address"])
+            success = packages.add_package(carrier, tracking_number, name=email["from_address"],
+                                           subject=email['subject'])
             if success:
                 slack.post_message('#general', 'New tracking number detected: {} from {}'.format(
                     tracking_number, email['from_address']))
 
 
 def new_tracking_event(package: Package):
-    slack.post_message('#general', 'Package {} is now {} at {}'.format(package.package_name, package.info.events[-1].detail,
-                                                                            package.info.events[-1].location))
+    slack.post_message('#general', 'Package {} is now {} at {}'.format(package.package_name,
+                                                                       package.info.events[-1].detail,
+                                                                       package.info.events[-1].location))
+    package.last_message_sent = datetime.datetime.now()
+
 
 def new_email_address_event(package: Package):
-    slack.post_message('#general', 'Package {} is now {} at {}'.format(package.email_address, package.info.events[-1].detail,
+    slack.post_message('#general', 'Package {} is now {} at {}'.format(package.email_address,
+                                                                       package.info.events[-1].detail,
+                                                                       package.info.events[-1].location))
+
+
+def respond_to_messages():
+    events = slack.get_events()
+
+    for event in events:
+        if event.event['type'] == 'message':
+            text = event.event['text'].strip()
+            if text.lower() == 'time':
+                slack.post_message(event.event['channel'], "The current time is {}".format(datetime.datetime.now()))
+
+            elif text.lower() == 'uptime':
+                uptime = datetime.datetime.now() - start_time
+                slack.post_message(event.event['channel'], "I have been running for {}".format(uptime))
+
+            elif text.lower() == 'list packages':
+                slack.post_message(event.event['channel'], "Here is a list of all packages on file:".format())
+                for package in packages.packages:
+                    slack.post_message(event.event['channel'], "{}".format(package))
+
+            elif text.lower().startswith("status "):
+                tnumber = text.replace("status ", "")
+                found = False
+
+                for package in packages.packages:
+                    if str(package.number) == tnumber:
+                        found = True  # Print details
+                        slack.post_message(
+                            '#general', 'Package {} is now {} at {}'.format(package.package_name,
+                                                                            package.info.events[-1].detail,
                                                                             package.info.events[-1].location))
 
-def search_for_tracking(content):  # TODO: Consider a more appropriate location for this.
-    """
-    Searches for USPS, UPS, Fedex, EMS, and SAL Tracking numbers
-    :param content: Content to search through
-    :type content: str
-    :return: (Shipping Service, Tracking Number)
-    :rtype: (str, str)
-    """
+                if not found:
+                    slack.post_message(event.event['channel'], "Tracking Number {} not found".format(tnumber))
 
-    # USPS
-    search = re.search(r"((?:92|93|94|95)(?:\d{20}|\d{24}))\b", content)
-    if search is not None:
-        # print("Found tracking number: " + search.groups()[0])
-        return "usps", search.groups()[0]
+            elif text.lower().startswith("rename last "):
+                name = text.replace("rename last ", "")
 
-    # UPS
-    search = re.search(r"\b(1Z ?[0-9A-Z]{3} ?[0-9A-Z]{3} ?[0-9A-Z]{2} ?[0-9A-Z]{4} ?[0-9A-Z]{3} ?[0-9A-Z])\b",
-                       content)
-    if search is not None:
-        return "ups", search.groups()[0]
+                package = packages.most_recent_updated_package()
+                slack.post_message(event.event['channel'], "Name updated from {} to {} ".format(package, name))
+                package.custom_name = name
 
-    # Japan Post
-    search = re.search(r"((?:[A-Z]|[a-z]){2}\d{9}JP)\b", content)
-    if search is not None:
-        return "japan_post", search.groups()[0]
+            elif text.lower().startswith("rename "):
+                # rename number name is here
+                strings = text.split()
 
-    # if no match
-    return None, None
+                package = packages.search_for_package(strings[1])
+                if package is not None and len(strings) > 2:
+                    new_name = ""
+                    for name_part in strings[2:]:
+                        new_name += " " + name_part
+                    if new_name != "":
+                        package.custom_name = new_name.strip()
 
+            elif text.lower().startswith("add "):
+                # add Number name
+                strings = text.split()
 
-def get_event():
-    try:
-        e = slack_socket._eventq.pop(0)
-        return e
-    except IndexError:
-        return None
+                carrier, number = Tracker.search_for_tracking_number(strings[1])
+                new_name = "custom_Add"
+                if len(strings) > 2:
+                    new_name = ""
+                    for name_part in strings[2:]:
+                        new_name += " " + name_part
+                    if new_name != "":
+                        new_name = new_name.strip()
+                packages.add_package(carrier, number, new_name)
+                packages.update_tracking()
 
-
-def get_events():
-    ret = []
-    while True:
-        rsp = get_event()
-        if rsp is not None:
-            ret.append(rsp)
-        else:
-            break
-    return ret
 
 if __name__ == '__main__':
     gmail = Gmail()
@@ -122,20 +150,7 @@ if __name__ == '__main__':
             packages.update_tracking()
             print("waiting 10 seconds")
 
-        for event in get_events():
-            # print(event.json)
-            if event.event['type'] == 'message':
-                try:
-                    print("{} said {}".format(event.event['user'], event.event['text']))
-                except KeyError:
-                    pass
-                if event.event['text'].lower() == 'time':
-                    slack.post_message(event.event['channel'], "The current time is {}".format(datetime.datetime.now()))
-                elif event.event['text'].lower() == 'uptime':
-                    uptime = datetime.datetime.now() - start_time
-                    slack.post_message(event.event['channel'], "I have been running for {}".format(uptime))
-
-
+        respond_to_messages()
 
         time.sleep(1)
         count += 1
