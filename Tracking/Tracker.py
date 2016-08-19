@@ -14,6 +14,7 @@ import re
 # from Packages import Packages
 from Tracking.errors import TrackingFailure, UnsupportedTrackingNumber, InvalidTrackingNumber, UnsupportedCarrier
 from Tracking.Carriers.USPS import USPSInterface
+from Tracking.Carriers.JapanPost import JapanPostInterface
 
 __carriers = {}
 
@@ -119,6 +120,7 @@ def search_for_tracking_number(content):
 
 configuration = load_config("secrets.yaml")
 register_carrier(USPSInterface, configuration['usps'])
+register_carrier(JapanPostInterface, configuration['usps'])  # Japan Post uses USPS
 # register_carrier(UPSInterface, config['ups'])
 # register_carrier(FedExInterface, config['fedex'])
 

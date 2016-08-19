@@ -198,8 +198,10 @@ class USPSInterface(BaseInterface):
         summary = rsp['TrackResponse']['TrackInfo']['TrackSummary']
 
         # USPS doesn't return this, so we work it out from the tracking number
-        service_description = rsp['TrackResponse']['TrackInfo']['Class']#"Not_Implemented" #"#self._service_types.get(tracking_number[0:2], 'USPS')
-
+        if 'Class' in rsp['TrackResponse']['TrackInfo']:
+            service_description = rsp['TrackResponse']['TrackInfo']['Class']  # "Not_Implemented" #"#self._service_types.get(tracking_number[0:2], 'USPS')
+        else:
+            service_description = None
 
         trackinfo = TrackingInfo(
             tracking_number = tracking_number,

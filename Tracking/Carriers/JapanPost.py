@@ -25,7 +25,7 @@ class JapanPostInterface(USPSInterface):
         search = re.search(r"((?:[A-Z]|[a-z]){2}\d{9}JP)\b", content)
         if search is not None:
             # print("Found tracking number: " + search.groups()[0])
-            return "usps", search.groups()[0]
+            return "japan_post", search.groups()[0]
         else:
             return None, None
 
