@@ -72,7 +72,7 @@ class Gmail:
             # We have no record of the last message we have stored (this is probably the first run)
             # Preform a full sync
 
-            message_ids = self.full_email_sync(number=50)['messages']
+            message_ids = self.full_email_sync()['messages']
         else:
             try:
                 message_ids, new_history_id = self.incremental_email_sync()
@@ -110,7 +110,7 @@ class Gmail:
         return True
 
 
-    def full_email_sync(self, number=100, call_count=0):
+    def full_email_sync(self, number=250, call_count=0):
         """
         Preforms a full email sync and clears the email buffer if there are email present
 

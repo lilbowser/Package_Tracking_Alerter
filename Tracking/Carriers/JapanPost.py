@@ -5,6 +5,9 @@ from Tracking.Carriers.USPS import USPSInterface
 
 
 class JapanPostInterface(USPSInterface):
+    """
+    Utilises S10 tracking numbers
+    """
 
     SHORT_NAME = 'japan_post'
     LONG_NAME = 'Japan Post'
@@ -41,5 +44,31 @@ class JapanPostInterface(USPSInterface):
 
         # Japan Post Check
         # TODO: IMPLEMENT!
-        return True
+        try:
+            id_number = tracking_number[2:11]
+            check_digit = int(id_number[-1])
+
+            sum = (int(id_number[0]) * 8) + \
+                      (int(id_number[1]) * 6) + \
+                      (int(id_number[2]) * 4) + \
+                      (int(id_number[3]) * 2) + \
+                      (int(id_number[4]) * 3) + \
+                      (int(id_number[5]) * 5) + \
+                      (int(id_number[6]) * 9) + \
+                      (int(id_number[7]) * 7)
+            calculated_check = 11 - (sum % 11)
+
+            if calculated_check == 10:
+                calculated_check = 0
+            elif calculated_check == 11:
+                calculated_check = 5
+
+            if calculated_check == check_digit:
+                return True
+            else:
+                return False
+        except Exception:
+            return False
+
+
 

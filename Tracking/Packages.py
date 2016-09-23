@@ -122,6 +122,7 @@ class Packages:
     """
     def __init__(self):
         self.packages = []  # type: List[Package]
+        self.nonfunctional_packages = []  # type: List[Package]
         self.new_event_callback = lambda x: None
         self.email_address_callback = lambda x: None
         self._log = logging.getLogger(self.__class__.__name__)
@@ -197,6 +198,7 @@ class Packages:
                 packages_ro_remove.append(package)
 
         for package in packages_ro_remove:
+            self.nonfunctional_packages
             self.packages.remove(package)
 
         if need_to_pickle:
